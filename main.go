@@ -1,26 +1,54 @@
 package main
 
 import (
-	"fmt"
+	"database/sql"
 	"log"
+	"os"
 
 	"github.com/StoicKnight/gator-cli/internal/config"
+	"github.com/StoicKnight/gator-cli/internal/database"
+
+	_ "github.com/lib/pq"
 )
+
+type state struct {
+	db  *database.Queries
+	cfg *config.Config
+}
 
 func main() {
 	cfg, err := config.Read()
 	if err != nil {
-		log.Fatalf("Error reading the config file: %v", err)
-	}
-	fmt.Println("Config:", cfg)
-
-	if err := cfg.SetUser("alexis"); err != nil {
-		log.Fatalf("Error setting current user: %v", err)
+		log.Fatalf("error reading config: %v", err)
 	}
 
-	cfg, err = config.Read()
+	dbURL := cfg.DBUrl
+	dbConn, err := sql.Open("postgres", dbURL)
 	if err != nil {
-		log.Fatalf("Error reading the config file: %v", err)
+		log.Fatalf("Error opening database: %s", err)
 	}
-	fmt.Println("Config 2:", cfg)
+	dbQueries := database.New(dbConn)
+
+	programState := &state{
+		db:  dbQueries,
+		cfg: &cfg,
+	}
+
+	cmds := commands{
+		registeredCommands: make(map[string]func(*state, command) error),
+	}
+	cmds.register("login", handlerLogin)
+	cmds.register("register", handlerRegister)
+
+	if len(os.Args) < 2 {
+		log.Fatal("Usage: cli <command> [args...]")
+	}
+
+	cmdName := os.Args[1]
+	cmdArgs := os.Args[2:]
+
+	err = cmds.run(programState, command{Name: cmdName, Args: cmdArgs})
+	if err != nil {
+		log.Fatal(err)
+	}
 }
