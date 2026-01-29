@@ -7,7 +7,7 @@ import (
 	"github.com/StoicKnight/gator-cli/internal/database"
 )
 
-func handlerAddFeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.Args) != 2 {
 		return fmt.Errorf("usage %v <name> <url>", cmd.Name)
 	}
@@ -28,10 +28,19 @@ func handlerAddFeed(s *state, cmd command) error {
 		return fmt.Errorf("could not create feed: %w", err)
 	}
 
+	_, err = s.db.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
+		UserID: user.ID,
+		FeedID: feed.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("could not create feed follow: %w", err)
+	}
+
 	fmt.Printf("Feed from '%s' was added to user '%s'\n", feed.Url, s.cfg.CurrentUserName)
-	fmt.Println("====================================================================")
 	fmt.Println()
+	fmt.Println("====================================================================")
 	printFeed(feed)
+	fmt.Println("================================================================")
 	return nil
 }
 
