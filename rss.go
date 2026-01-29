@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"html"
 	"net/http"
+	"time"
 )
 
 type RSSFeed struct {
@@ -24,16 +25,21 @@ type RSSItem struct {
 }
 
 func fetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
+	client := http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, feedURL, nil)
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("User-Agent", "gator")
 
-	client := http.DefaultClient
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	rssFeed := RSSFeed{}
 	decoder := xml.NewDecoder(resp.Body)
@@ -49,9 +55,9 @@ func cleanHTML(r *RSSFeed) *RSSFeed {
 	r.Channel.Title = html.UnescapeString(r.Channel.Title)
 	r.Channel.Description = html.UnescapeString(r.Channel.Description)
 
-	for _, item := range r.Channel.Item {
-		item.Title = html.UnescapeString(item.Title)
-		item.Description = html.UnescapeString(item.Description)
+	for i := range r.Channel.Item {
+		r.Channel.Item[i].Title = html.UnescapeString(r.Channel.Item[i].Title)
+		r.Channel.Item[i].Description = html.UnescapeString(r.Channel.Item[i].Description)
 	}
 
 	return r
