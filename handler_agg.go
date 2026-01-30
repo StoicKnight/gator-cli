@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"time"
+
+	"github.com/StoicKnight/gator-cli/internal/database"
 )
 
 func handlerAgg(s *state, cmd command) error {
@@ -41,13 +45,32 @@ func scrapeFeeds(s *state) error {
 		return fmt.Errorf("count not fetch feed: %w", err)
 	}
 
-	fmt.Printf("Titles from '%s' feed (%s):", markedAsFetched.Name, markedAsFetched.Url)
-	fmt.Println()
-	fmt.Println("==============================================================================")
 	for _, item := range feedData.Channel.Item {
-		fmt.Printf("* Title: '%s'\n", item.Title)
-		fmt.Printf("* Link: '%s'\n", item.Link)
-		fmt.Println("==============================================================================")
+		publishedAt := sql.NullTime{}
+		if t, err := time.Parse(time.RFC1123Z, item.PubDate); err == nil {
+			publishedAt = sql.NullTime{
+				Time:  t,
+				Valid: true,
+			}
+		}
+
+		_, err = s.db.CreatePost(context.Background(), database.CreatePostParams{
+			FeedID: nextFeed.ID,
+			Title:  item.Title,
+			Description: sql.NullString{
+				String: item.Description,
+				Valid:  true,
+			},
+			Url:         item.Link,
+			PublishedAt: publishedAt,
+		})
+		if err != nil {
+			if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+				continue
+			}
+			log.Printf("Couldn't create post: %v", err)
+			continue
+		}
 	}
 	return nil
 }
