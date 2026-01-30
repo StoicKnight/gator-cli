@@ -26,7 +26,7 @@ UPDATE feeds
 SET
 last_fetched_at = NOW(),
 updated_at = NOW()
-WHERE user_id = $1
+WHERE id = $1
 RETURNING *;
 
 -- name: GetNextFeedToFetch :one
